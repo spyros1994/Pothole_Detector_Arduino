@@ -1,0 +1,274 @@
+#include <RTClib.h>
+#include <DS3231.h>
+#include <stdio.h>
+#include <SD.h>
+#include <SPI.h>
+#include <ArduinoJson.h>
+#include <math.h>
+const int x_out = 0; /* connect x_out of module to A1 of UNO board */
+const int y_out = 1; /* connect y_out of module to A2 of UNO board */
+const int z_out = 2; /* connect z_out of module to A3 of UNO board */
+int Xread;
+int Xrest;
+
+int Yread;
+int Yrest;
+
+int Zread;
+int Zrest;
+int acc=0;
+/*V*/
+double Gx;
+double Gy;
+double Gz;
+double G;
+double Gacc[30];
+double Xacc[30];
+double Yacc[30];
+double Zacc[30];
+int l;
+int xpin = 0;
+int ypin = 1;
+int zpin = 2;
+int flag=0;
+int n=-1;
+int i=0;
+RTC_DS3231 rtc ;
+int pinCS = 53;
+File myFile;
+const int cs = 4;
+int chipSelect = 4; //chip select pin for the MicroSD Card Adapter
+
+
+ 
+
+void setup() {
+
+
+ 
+
+
+  
+ Xrest=analogRead(xpin);
+Yrest=analogRead(ypin);
+Zrest=analogRead(zpin);
+ Serial.begin(9600); 
+ rtc.begin();
+ 
+ //Initializing date and time just once 
+ //rtc.adjust(DateTime(2019,7,2,20,8,30)) ;
+l=1;
+
+ if (SD.begin(4))
+  {
+   // Serial.println("SD card is ready to use.");
+  } else
+  {
+   // Serial.println("SD card initialization failed");
+    return;
+  }
+  myFile = SD.open("test.txt");
+  if (myFile) {
+    // read from the file until there's nothing else in it:
+    while (myFile.available()) {
+   
+      Serial.write(myFile.read());
+    }
+    // close the file:
+    myFile.close();
+  } else {
+    // if the file didn't open, print an error:
+    Serial.println("error opening test.txt");
+  }
+
+
+
+
+
+  
+}
+
+void loop() {
+    
+                        
+ 
+                         
+
+    Xread=0;
+    Yread=0;
+    Zread=0;
+  
+  Xread = analogRead(xpin)-Xrest;
+  Yread=analogRead(ypin)-Yrest;
+  Zread=analogRead(zpin)-Zrest;
+  /*Use the below block of code to print correct values from sensor*/
+  Gx=Xread/67.584;//<--//power supply by Vs 3.3V: (((3.3 V / 5 V) *1024)*330mv/g )/ 3.3 V  = 67.6 g
+  Gy=Yread/67.584;
+  Gz=Zread/67.584;
+  G=sqrt(pow(Gx, 2)+pow(Gy, 2)+pow(Gz, 2));
+  
+
+ //Put values to the array list
+ //Start put values to the buffer
+                     
+                    // If G is grater than 0.2 open a buffer and save the data
+                    if (G > 0.2000|| flag==1) {
+                      
+                          flag=1;
+                          n=n+1; 
+                        
+                          
+  
+                      Gacc[n]=G;
+                      Xacc[n]=Gx;
+                      Yacc[n]=Gy;
+                      Zacc[n]=Gz;
+                      //If a value is grater than 0.32 means that we have a pothole
+                     if(G>0.3200){
+                      acc=1;
+                      
+                      }
+                      
+                          
+                          if(n==29 && acc==1){
+                            for(i=0;i<30;i++){
+                               Serial.println(Gacc[i],4);
+                              
+                              
+                              }
+                            n=-1;
+                            flag=0;
+                            G=0;
+                            Gx=0;
+                            Gy=0;
+                            Gz=0;
+                            acc=0;
+                            //Open a file from sd card to write the data
+                               myFile = SD.open("test.txt", FILE_WRITE);
+                               if (myFile) {
+                               Serial.print("Writing to test.txt...");
+                               myFile.println("") ;                        
+                              
+                             
+                               
+                                myFile.print(" ");                           
+                                myFile.println("");
+                                  
+                                 // We use a loop to write the data from the array to the text file
+                                 for(i=0;i<30;i++){
+                                  
+                                  //Getting timestamp and set the property syntax for ThingSpeak
+                                  DateTime now = rtc.now();
+                                    myFile.print("D:");
+                                myFile.print(now.year());
+                                myFile.print("-");
+                                if(now.month()<10){
+                                    myFile.print(0);
+                                     myFile.print(now.month());
+                                     
+                                  }else{
+                                     myFile.print(now.month());}
+                                myFile.print("-");
+                                if(now.day()<10){
+                                  myFile.print(0);
+                                     myFile.print(now.day());
+                                  
+                                  }else{
+                                myFile.print(now.day());}
+                                myFile.print("T");
+                                 if(now.hour()<10){
+                                  myFile.print(0);
+                                     myFile.print(now.hour());
+                                  
+                                  }else{
+                                myFile.print(now.hour());
+                                }  
+                                myFile.print(":");
+                                 if(now.minute()<10){
+                                  myFile.print(0);
+                                     myFile.print(now.minute());
+                                  
+                                  }else{
+                                myFile.print(now.minute());
+                                }
+                               
+                                myFile.print(":");
+                                if(now.second()<10){
+                                  myFile.print(0);
+                                  
+                                     myFile.print(now.second());
+                                  
+                                  }else{
+                                myFile.print(now.second());
+                                  }
+                                 //We use 1 second delay to increase in every loop the timestamp per 1 second
+                                 //because ThingSpeak allows only entities with different timestamps
+                                  delay(1000);
+                               
+                                myFile.println(""); 
+                                myFile.println("");
+                                myFile.print("G:");
+                               
+                                  
+                                myFile.print(Gacc[i],4);
+                                Gacc[i]=0;
+                                    if(i<29){
+                                    myFile.print(",");}
+                                
+    
+                                myFile.println("");    
+                                myFile.print("X:");
+                                
+                                myFile.print(Xacc[i],4);
+                               
+                                    if(i<29){
+                                      myFile.print(",");}
+                                
+
+                                myFile.println("");    
+                                myFile.print("Y:");
+                                
+                                myFile.print(Yacc[i],4);
+                                    if(i<29){
+                                myFile.print(",");}
+                                
+
+                                myFile.println("");         
+                                myFile.print("Z:");
+                               
+                                myFile.print(Zacc[i],4);
+                                     if(i<29){
+                                        myFile.print(",");}
+                                
+                                myFile.println(" ");
+
+                                
+    
+                                }
+                                // close the file:
+                                myFile.close();
+                                Serial.println("done.");
+                                } else {
+                                // if the file didn't open, print an error:
+                               Serial.println("error opening test.txt");
+                                                           
+                          }
+                            
+                            }
+
+                            //We use this if in case that none value of the array is grater than 0.32 and the array is full
+                             if(n==29){
+                                n=-1;
+                              }
+                          
+                          }  
+                        
+   
+    
+                          
+
+  
+  
+  /*The refresh rate of the accelerometer is 10 ms*/
+  delay(10);
+}
